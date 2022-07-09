@@ -91,9 +91,7 @@ def Get_Num_Pages(url):
     div_num_of_pages = soup.find(class_="css-4mw0p4")
     num_of_pages = div_num_of_pages.findChildren("a", class_="css-1mi714g")  # ResultSet: List of Tags
     num_of_pages = int(num_of_pages[3].text)
-    print(num_of_pages)
     return num_of_pages
-
 
 if __name__ == '__main__':
     needed_value = input("Input goods ")
