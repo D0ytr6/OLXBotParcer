@@ -4,6 +4,7 @@ from aiogram.utils import executor
 from aiogram.types import ReplyKeyboardRemove, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.dispatcher.filters.state import State, StatesGroup
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
+import threading
 import OLX_Get_Data
 import urllib.parse
 
@@ -61,7 +62,8 @@ async def Request(message: types.Message, state: FSMContext):
     url = 'https://www.olx.ua/d/list/q-' + goods + '/'
     num_of_pages = OLX_Get_Data.Get_Num_Pages(url)
     OLX_Get_Data.CrateFile()
-    OLX_Get_Data.GetFromPages(num_of_pages, url)
+    LoadThread = threading.Thread(OLX_Get_Data.GetFromPages(num_of_pages, url))
+    LoadThread.start()
     file = open("data.csv", "rb")
     await bot.send_document(message.chat.id, file)
     await message.answer("Виберіть потрібну дію", reply_markup=Main_Keyboard)
@@ -69,7 +71,6 @@ async def Request(message: types.Message, state: FSMContext):
 
 @dp.message_handler()
 async def echo_message(msg: types.Message):
-
     pass
 
 if __name__ == "__main__":
