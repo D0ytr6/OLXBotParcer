@@ -5,6 +5,21 @@ import csv
 import asyncio
 import aiohttp
 import time
+from multiprocessing import Process
+import psycopg2
+from threading import Thread
+
+
+class DownloadThread(Thread):
+    def __init__(self, func, url, count_pages):
+        super(DownloadThread, self).__init__()
+        self.func = func
+        self.url = url
+        self.count = count_pages
+        #Thread.__init__(self)
+
+    def run(self):
+        asyncio.run(self.func(url=self.url, pages_count=self.count))
 
 headers = {
     'accept': '*/*',
@@ -23,44 +38,16 @@ def CreateFile():
             ["Продавець", "Силка на товар", "Ціна", "Наявність ОЛХ доставки", "Місто", "Дата"]
         )
 
-def get_data_from_page():
-    for page in pages:
-        soup = BeautifulSoup(page, features="html.parser")
-        page_items = soup.find_all(class_="css-19ucd76")
-        print(len(page_items))
-        count = 0
-        count_error = 0
-        for item in page_items:
-            child_url = item.findChildren("a")  # return ResultSet
-            child_title = item.findChildren("h6")  # return ResultSet
-            child_price = item.findChildren(class_="css-wpfvmn-Text eu5v0x0")
-            child_OLX_delivering = item.findChildren(class_="css-1ojrdd5")
-            сhild_City_Date = item.findChildren(class_="css-p6wsjo-Text eu5v0x0")
-            isDeliver = ""
-            try:
-                print(child_title[0].get_text())
-                LstDateCity = сhild_City_Date[0].get_text().split(" - ")
-                print(LstDateCity)
-                if (len(child_OLX_delivering) == 1):
-                    isDeliver = "Так"
-                elif (len(child_OLX_delivering) == 0):
-                    isDeliver = "Ні"
-                parced_url = 'https://www.olx.ua' + child_url[0]['href']  # You can get value of tag like in dict
-                # print(child_url[0]['href'])
-                data_list = [child_title[0].get_text(), parced_url, child_price[0].get_text(), isDeliver,
-                             LstDateCity[0], LstDateCity[1]]
-                with open("data.csv", "a", newline='') as file:
-                    writer = csv.writer(file, delimiter=";")
-                    writer.writerow(data_list)
-
-                count = count + 1
-            except:
-                count_error = count_error + 1
+def get_data_from_page(Pages):
+    if(type(Pages) is list):
+        for page in Pages:
+            LoadData(page)
+    else:
+        LoadData(Pages)
 
 
-def GetALLValues(url, headers):
-    req = requests.get(url, headers=headers)
-    soup = BeautifulSoup(req.text, features="html.parser")
+def LoadData(page):
+    soup = BeautifulSoup(page, features="html.parser")
     page_items = soup.find_all(class_="css-19ucd76")
     print(len(page_items))
     count = 0
@@ -87,7 +74,6 @@ def GetALLValues(url, headers):
             with open("data.csv", "a", newline='') as file:
                 writer = csv.writer(file, delimiter=";")
                 writer.writerow(data_list)
-
             count = count + 1
         except:
             count_error = count_error + 1
@@ -99,23 +85,23 @@ def GetALLValues(url, headers):
 
 async def get_page_data_async(session, url):
     async with session.get(url, headers = headers) as responce:
-        print(responce.status)
+        #print(responce.status)
         text = await responce.text()
         pages.append(text)
 
 
-def GetFromPages(num_of_pages, url):
+def GetFromPages_Async(num_of_pages, url):
     if (num_of_pages > 0):
         this_page = 1
         while (this_page != num_of_pages):
             if (this_page == 1):
-                GetALLValues(url, headers)
+                LoadData(url)
                 this_page = this_page + 1
             else:
                 if '?page=' not in url:
                     url = url + '?page=' + str(this_page)
                     # print(url)
-                    GetALLValues(url, headers)
+                    LoadData(url)
                     this_page = this_page + 1
 
                 else:
@@ -123,13 +109,13 @@ def GetFromPages(num_of_pages, url):
                         url = url[:-1]
                         url = url + str(this_page)
                         # print(url)
-                        GetALLValues(url, headers)
+                        LoadData(url)
                         this_page = this_page + 1
 
                     elif (url[-3] == '='):
                         url = url[:-2]
                         url = url + str(this_page)
-                        GetALLValues(url, headers)
+                        LoadData(url)
                         this_page = this_page + 1
 
 async def load_data_async(url, pages_count):
@@ -173,18 +159,46 @@ async def test_aio_session():
             text = await response.text()
             print(text)
 
+def split_pages_to_thread():
+    process_count = 5
+    Pages1, Pages2, Pages3, Pages4, Pages5 = []
+    for i in range(1, len(pages) + 1):
+        if (i < 6):
+            Pages1.append(pages[i - 1])
+
+        elif(i < 11):
+            Pages2.append(pages[i - 1])
+
+        elif(i < 16):
+            Pages3.append(pages[i - 1])
+
+        elif(i < 21):
+            Pages4.append(pages[i - 1])
+
+        elif(i < 26):
+            Pages5.append(pages[i - 1])
+
+async def start_loop(url, page_number):
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+    asyncio.run(load_data_async(url, page_number))
+    get_data_from_page(Pages=pages)
+
 if __name__ == '__main__':
-    start_time = time.time()
     needed_value = input("Input goods ")
+    start_time = time.time()
     needed_value = urllib.parse.quote(needed_value)
     url = 'https://www.olx.ua/d/list/q-' + needed_value + '/'
     num_of_pages = Get_Num_Pages(url)
-
     CreateFile()
-    # GetFromPages(num_of_pages, url)
 
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-    asyncio.run(load_data_async(url, num_of_pages))
-    get_data_from_page()
+    #asyncio.run(load_data_async(url, num_of_pages))
+
+    th = DownloadThread(load_data_async, url, num_of_pages)
+    th.start()
+    th.join()
+
+    get_data_from_page(Pages=pages)
+
     end_time = time.time() - start_time
     print(f"\nExecution time: {end_time} seconds")
