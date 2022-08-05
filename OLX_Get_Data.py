@@ -15,27 +15,29 @@ from threading import Thread
 
 # Creating Async thread
 class DownloadThread(Thread):
-    def __init__(self, func, url, count_pages):
+    def __init__(self, func, url, count_pages, pages_list):
         super(DownloadThread, self).__init__()
         self.func = func
         self.url = url
         self.count = count_pages
+        self.page_list = pages_list
         #Thread.__init__(self)
 
     def run(self):
-        asyncio.run(self.func(self.url, self.count))
+        asyncio.run(self.func(self.url, self.count, self.page_list))
 
 class Parce_Thread(Thread):
-    def __init__(self, func, message: types.Message, bot, dict_control):
+    def __init__(self, func, message: types.Message, bot, dict_control, pages):
         super(Parce_Thread, self).__init__()
         self.func = func
         self.id = id
         self.message = message
         self.bot = bot
         self.dict_control = dict_control
+        self.pages = pages
 
     def run(self):
-        asyncio.run(self.func(self.message, self.bot, self.dict_control))
+        asyncio.run(self.func(self.message, self.bot, self.dict_control, self.pages))
 
 
 class ControlCycle(Thread):
@@ -61,7 +63,7 @@ headers = {
     'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36'
 }
 
-pages = []
+# pages = []
 
 
 def CreateRequest(url, header): #return list
@@ -86,7 +88,7 @@ async def get_data_from_page(Pages, message: types.Message, bot, control_dict):
     else:
         await LoadData(Pages, message.from_user.id)
 
-async def create_tsk(message: types.Message, bot, dict_control):
+async def create_tsk(message: types.Message, bot, dict_control, pages):
     parse_task = asyncio.create_task(get_data_from_page(pages, message, bot, dict_control))
     await parse_task
 
@@ -127,7 +129,7 @@ async def LoadData(page, user_id):
     print(count)
     print(count_error)
 
-async def get_page_data_async(session, url):
+async def get_page_data_async(session, url, pages):
     async with session.get(url, headers = headers) as responce:
         #print(responce.status)
         text = await responce.text()
@@ -162,15 +164,13 @@ def GetFromPages_Async(num_of_pages, url):
                         LoadData(url)
                         this_page = this_page + 1
 
-async def load_data_async(url, pages_count):
+async def load_data_async(url, pages_count, pages):
     tasks = []
     page_url = url
     async with aiohttp.ClientSession() as session:
         for page in range(1, pages_count + 1):
             if(page == 1):
                 pass
-                #page_url = url
-                #task = asyncio.create_task(get_page_data_async(session, url))
             else:
                 if '?page=' not in page_url:
                     page_url = page_url + '?page=' + str(page)
@@ -184,7 +184,7 @@ async def load_data_async(url, pages_count):
                         page_url = page_url[:-2]
                         page_url = page_url + str(page)
 
-            task = asyncio.create_task(get_page_data_async(session, page_url))
+            task = asyncio.create_task(get_page_data_async(session, page_url, pages))
             tasks.append(task)
         await asyncio.gather(*tasks)
 
@@ -193,7 +193,10 @@ def Get_Num_Pages(url):
     soup = BeautifulSoup(req.text, features="html.parser")
     div_num_of_pages = soup.find(class_="css-4mw0p4")
     num_of_pages = div_num_of_pages.findChildren("a", class_="css-1mi714g")  # ResultSet: List of Tags
-    num_of_pages = int(num_of_pages[3].text)
+    try:
+        num_of_pages = int(num_of_pages[3].text)
+    except IndexError:
+        num_of_pages = 1
     return num_of_pages
 
 async def test_aio_session():
@@ -203,7 +206,7 @@ async def test_aio_session():
             text = await response.text()
             print(text)
 
-def split_pages_to_thread():
+def split_pages_to_thread(pages):
     process_count = 5
     Pages1, Pages2, Pages3, Pages4, Pages5 = []
     for i in range(1, len(pages) + 1):
@@ -222,28 +225,31 @@ def split_pages_to_thread():
         elif(i < 26):
             Pages5.append(pages[i - 1])
 
-async def start_loop(url, page_number):
+async def start_loop(url, page_number, pages):
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
     asyncio.run(load_data_async(url, page_number))
     get_data_from_page(Pages=pages)
 
 if __name__ == '__main__':
-    needed_value = input("Input goods ")
-    start_time = time.time()
-    needed_value = urllib.parse.quote(needed_value)
-    url = 'https://www.olx.ua/d/list/q-' + needed_value + '/'
-    num_of_pages = Get_Num_Pages(url)
-    CreateFile()
+    #     needed_value = input("Input goods ")
+    # start_time = time.time()
+    # needed_value = urllib.parse.quote(needed_value)
+    # url = 'https://www.olx.ua/d/list/q-' + needed_value + '/'
+    # num_of_pages = Get_Num_Pages(url)
+    # CreateFile()
+    #
+    # asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+    # #asyncio.run(load_data_async(url, num_of_pages))
+    #
+    # th = DownloadThread(load_data_async, url, num_of_pages)
+    # th.start()
+    # th.join()
+    #
+    # #get_data_from_page(Pages=pages)
+    # asyncio.run(create_tsk())
+    #
+    # end_time = time.time() - start_time
+    # print(f"\nExecution time: {end_time} seconds")
 
-    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-    #asyncio.run(load_data_async(url, num_of_pages))
-
-    th = DownloadThread(load_data_async, url, num_of_pages)
-    th.start()
-    th.join()
-
-    #get_data_from_page(Pages=pages)
-    asyncio.run(create_tsk())
-
-    end_time = time.time() - start_time
-    print(f"\nExecution time: {end_time} seconds")
+    for i in range(1, 2):
+        print(i)

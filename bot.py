@@ -129,11 +129,11 @@ async def Request(message: types.Message, state: FSMContext):
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
     pages = list()
-    th = OLX_Get_Data.DownloadThread(OLX_Get_Data.load_data_async, url, num_of_pages)
+    th = OLX_Get_Data.DownloadThread(OLX_Get_Data.load_data_async, url, num_of_pages, pages)
     th.start()
     th.join()
 
-    thread_soup = OLX_Get_Data.Parce_Thread(OLX_Get_Data.create_tsk, message, bot, dict_control=control_load_file)
+    thread_soup = OLX_Get_Data.Parce_Thread(OLX_Get_Data.create_tsk, message, bot, dict_control=control_load_file, pages=pages)
     thread_soup.start()
     th.join()
 
