@@ -1,16 +1,20 @@
-from aiogram import Bot, types
-from aiogram.dispatcher import Dispatcher, FSMContext
-from aiogram.utils import executor
-from aiogram.types import ReplyKeyboardRemove, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
-from aiogram.dispatcher.filters.state import State, StatesGroup
-from aiogram.contrib.fsm_storage.memory import MemoryStorage
-import threading
-import OLX_Get_Data
-import urllib.parse
-import psycopg2
-import datetime
 import asyncio
-import schedule
+import datetime
+import threading
+import time
+import os
+import urllib.parse
+
+import aioschedule as schedule
+import psycopg2
+
+from aiogram import Bot, types, executor
+from aiogram.contrib.fsm_storage.memory import MemoryStorage
+from aiogram.dispatcher import Dispatcher, FSMContext
+from aiogram.dispatcher.filters.state import State, StatesGroup
+from aiogram.types import ReplyKeyboardRemove, ReplyKeyboardMarkup, KeyboardButton
+
+import OLX_Get_Data
 
 connection = psycopg2.connect(
         database="users",
@@ -19,6 +23,27 @@ connection = psycopg2.connect(
         host="127.0.0.1",
         port="5432"
 )
+
+control_load_file = {}
+
+async def test_print():
+    print("It's test aioshedule!")
+
+async def job(message='stuff', n=1):
+    print("Asynchronous invocation (%s) of I'm working on:" % n, message)
+    asyncio.sleep(1)
+
+async def check_dict(id):
+    while True:
+        if control_load_file[id] == True:
+            return
+        await asyncio.sleep(5)
+
+#async def create_shed_tsk():
+ #   task = asyncio.create_task()
+
+schedule.every(1).seconds.do(job)
+
 
 class FSMRequest(StatesGroup):
     requested_items = State()
@@ -84,8 +109,10 @@ async def FSM_Start(message: types.Message, state: FSMContext):
     await message.answer("Виберіть потрібну дію", reply_markup=Main_Keyboard)
 
 @dp.message_handler(state=FSMRequest.requested_items)
+
 async def Request(message: types.Message, state: FSMContext):
     await bot.send_message(message.chat.id, "Making request...")
+    control_load_file[message.from_user.id] = False
     now =  datetime.datetime.now()
     print(now.strftime("%d-%m-%Y %H:%M"))
     cur = connection.cursor()
@@ -96,22 +123,28 @@ async def Request(message: types.Message, state: FSMContext):
     goods = urllib.parse.quote(goods)
     url = 'https://www.olx.ua/d/list/q-' + goods + '/'
     num_of_pages = OLX_Get_Data.Get_Num_Pages(url)
-    OLX_Get_Data.CreateFile()
+    OLX_Get_Data.CreateFile(message.from_user.id)
     #await OLX_Get_Data.start_loop(url, page_number=num_of_pages)
 
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
+    pages = list()
     th = OLX_Get_Data.DownloadThread(OLX_Get_Data.load_data_async, url, num_of_pages)
     th.start()
     th.join()
 
-    thread_soup = threading.Thread(target=OLX_Get_Data.get_data_from_page, args=(OLX_Get_Data.pages,))
+    thread_soup = OLX_Get_Data.Parce_Thread(OLX_Get_Data.create_tsk, message, bot, dict_control=control_load_file)
     thread_soup.start()
-    OLX_Get_Data.get_data_from_page(Pages=OLX_Get_Data.pages)
+    th.join()
 
-    file = open("data.csv", "rb")
-    await bot.send_document(message.chat.id, file)
+    # await asyncio.sleep(12)
+    await check_dict(message.from_user.id)
+
+    #OLX_Get_Data.get_data_from_page(Pages=OLX_Get_Data.pages)
+    file = open(f"data_{message.from_user.id}.csv", "rb")
+    await bot.send_document(message.chat.id, file) # send an empty file, async thread continuous working
     await message.answer("Виберіть потрібну дію", reply_markup=Main_Keyboard)
+    os.remove(f"data_{message.from_user.id}.csv")
     await state.finish()
 
 @dp.message_handler()
@@ -127,3 +160,9 @@ if __name__ == "__main__":
         ", Request TEXT, Request_time TEXT)")
     connection.commit()
     executor.start_polling(dispatcher=dp)
+
+    # loop = asyncio.get_event_loop()
+    #while True:
+    #    loop.run_until_complete(schedule.run_pending())
+    #asyncio.run(schedule.run_pending())
+    #time.sleep(0.1)

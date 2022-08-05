@@ -5,11 +5,15 @@ import csv
 import asyncio
 import aiohttp
 import time
+import os
+import aiogram
 from multiprocessing import Process
 import psycopg2
+from aiogram import types
 from threading import Thread
 
 
+# Creating Async thread
 class DownloadThread(Thread):
     def __init__(self, func, url, count_pages):
         super(DownloadThread, self).__init__()
@@ -19,7 +23,38 @@ class DownloadThread(Thread):
         #Thread.__init__(self)
 
     def run(self):
-        asyncio.run(self.func(url=self.url, pages_count=self.count))
+        asyncio.run(self.func(self.url, self.count))
+
+class Parce_Thread(Thread):
+    def __init__(self, func, message: types.Message, bot, dict_control):
+        super(Parce_Thread, self).__init__()
+        self.func = func
+        self.id = id
+        self.message = message
+        self.bot = bot
+        self.dict_control = dict_control
+
+    def run(self):
+        asyncio.run(self.func(self.message, self.bot, self.dict_control))
+
+
+class ControlCycle(Thread):
+    def __init__(self, func, url, count_pages):
+        super(ControlCycle, self).__init__()
+        self.func = func
+        self.url = url
+        self.count = count_pages
+        #Thread.__init__(self)
+
+    def control_loadfile(self, control_dict, id):
+        while True:
+            if control_dict[id] == True:
+                pass
+
+
+    def run(self):
+        asyncio.run(self.func(self.url, self.count))
+
 
 headers = {
     'accept': '*/*',
@@ -28,25 +63,34 @@ headers = {
 
 pages = []
 
+
 def CreateRequest(url, header): #return list
     pass
 
-def CreateFile():
-    with open("data.csv", "w", newline='') as file:
+def CreateFile(user_id):
+    with open(f"data_{user_id}.csv", "w", newline='') as file:
         writer = csv.writer(file, delimiter=";")
         writer.writerow(
             ["Продавець", "Силка на товар", "Ціна", "Наявність ОЛХ доставки", "Місто", "Дата"]
         )
 
-def get_data_from_page(Pages):
+async def get_data_from_page(Pages, message: types.Message, bot, control_dict):
     if(type(Pages) is list):
         for page in Pages:
-            LoadData(page)
+            await LoadData(page, message.from_user.id)
+        control_dict[message.from_user.id] = True
+        # file = open(f"data_{message.from_user.id}.csv", "rb")
+        # await bot.send_document(message.chat.id, file)
+        # os.remove(f"data_{message.from_user.id}.csv")
+
     else:
-        LoadData(Pages)
+        await LoadData(Pages, message.from_user.id)
 
+async def create_tsk(message: types.Message, bot, dict_control):
+    parse_task = asyncio.create_task(get_data_from_page(pages, message, bot, dict_control))
+    await parse_task
 
-def LoadData(page):
+async def LoadData(page, user_id):
     soup = BeautifulSoup(page, features="html.parser")
     page_items = soup.find_all(class_="css-19ucd76")
     print(len(page_items))
@@ -71,7 +115,7 @@ def LoadData(page):
             parced_url = 'https://www.olx.ua' + child_url[0]['href']  # You can get value of tag like in dict
             # print(child_url[0]['href'])
             data_list = [child_title[0].get_text(), parced_url, child_price[0].get_text(), isDeliver, LstDateCity[0], LstDateCity[1]]
-            with open("data.csv", "a", newline='') as file:
+            with open(f"data_{user_id}.csv", "a", newline='') as file:
                 writer = csv.writer(file, delimiter=";")
                 writer.writerow(data_list)
             count = count + 1
@@ -198,7 +242,8 @@ if __name__ == '__main__':
     th.start()
     th.join()
 
-    get_data_from_page(Pages=pages)
+    #get_data_from_page(Pages=pages)
+    asyncio.run(create_tsk())
 
     end_time = time.time() - start_time
     print(f"\nExecution time: {end_time} seconds")
