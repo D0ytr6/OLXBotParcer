@@ -231,25 +231,22 @@ async def start_loop(url, page_number, pages):
     get_data_from_page(Pages=pages)
 
 if __name__ == '__main__':
-    #     needed_value = input("Input goods ")
-    # start_time = time.time()
-    # needed_value = urllib.parse.quote(needed_value)
-    # url = 'https://www.olx.ua/d/list/q-' + needed_value + '/'
-    # num_of_pages = Get_Num_Pages(url)
-    # CreateFile()
-    #
-    # asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-    # #asyncio.run(load_data_async(url, num_of_pages))
-    #
-    # th = DownloadThread(load_data_async, url, num_of_pages)
-    # th.start()
-    # th.join()
-    #
-    # #get_data_from_page(Pages=pages)
-    # asyncio.run(create_tsk())
-    #
-    # end_time = time.time() - start_time
-    # print(f"\nExecution time: {end_time} seconds")
+    needed_value = input("Input goods ")
+    start_time = time.time()
+    needed_value = urllib.parse.quote(needed_value)
+    url = 'https://www.olx.ua/d/list/q-' + needed_value + '/'
+    num_of_pages = Get_Num_Pages(url)
+    CreateFile()
 
-    for i in range(1, 2):
-        print(i)
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+    #asyncio.run(load_data_async(url, num_of_pages))
+
+    th = DownloadThread(load_data_async, url, num_of_pages)
+    th.start()
+    th.join()
+
+    #get_data_from_page(Pages=pages)
+    asyncio.run(create_tsk())
+
+    end_time = time.time() - start_time
+    print(f"\nExecution time: {end_time} seconds")
