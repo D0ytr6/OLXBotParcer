@@ -5,6 +5,9 @@ import asyncio
 import csv
 import requests
 
+class EndTimeIteration(RuntimeError):
+    pass
+
 def Get_Num_Pages(url):
     req = requests.get(url, headers=headers)
     soup = BeautifulSoup(req.text, features="html.parser")
@@ -52,6 +55,52 @@ async def LoadData(page, user_id):
     print(count)
     print(count_error)
 
+async def last_updated_smth(page, start_hour, start_price = 0):
+    soup = BeautifulSoup(page, features="html.parser")
+    page_items = soup.find_all(class_="css-19ucd76")
+    count = 0
+    str_hour = str(start_hour)
+    for item in page_items:
+        try:
+            child_url = item.findChildren("a")  # return ResultSet
+            child_url = 'https://www.olx.ua' + child_url[0]['href']
+            child_date = item.findChildren(class_="css-p6wsjo-Text eu5v0x0")
+            child_price = item.findChildren(class_="css-wpfvmn-Text eu5v0x0")
+            price = child_price[0].get_text()
+            if(price.find("Договірна") != -1):
+                price = price.replace("Договірна", "")
+            price = price.replace(" грн.", "")
+            price = price.replace(" ", "")
+            price = int(price)
+            try:
+                if(child_date[0].get_text().find("Сьогодні") != -1):
+                    time = child_date[0].get_text()[-5:]
+                    change_hour = int(time[0:2]) + 3
+                    #child_price = int(child_price[0].get_text())
+                    # print(f"Datetime{str_hour}\t olxhour{change_hour}")
+                    if(str(change_hour) == str_hour and price > start_price):
+                        print(child_date[0].get_text() + " " + child_url)
+                    elif(str(change_hour) == str(int(str_hour) - 1)):
+                        #print(f'Exception end {id(page)}')
+                        raise EndTimeIteration
+                        # return
+
+                count += 1
+
+            except:
+                pass
+        except:
+            pass
+    print(count)
+
+async def get_data_from_pages_everyhour(pages, start_hour):
+    for page in pages:
+        try:
+            await last_updated_smth(page, start_hour, start_price=1000)
+        except EndTimeIteration as e:
+            print("End Exception")
+            return
+
 async def get_data_from_page(Pages, message: types.Message, bot, control_dict):
     if(type(Pages) is list):
         for page in Pages:
@@ -66,3 +115,4 @@ async def get_data_from_page(Pages, message: types.Message, bot, control_dict):
 async def create_tsk(message: types.Message, bot, dict_control, pages):
     parse_task = asyncio.create_task(get_data_from_page(pages, message, bot, dict_control))
     await parse_task
+

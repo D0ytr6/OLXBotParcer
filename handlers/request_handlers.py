@@ -6,9 +6,12 @@ from bot_requests import standart_request
 from Initialization.create_bot import dp, bot, control_load_file, user_track_inf
 from Initialization.create_keyboard import Main_Keyboard, Cancel_Keyboard
 from bot_requests.standart_request import create_parce_call
+import asyncio
 
 import aioschedule as schedule
 import os
+
+count = 0
 
 class FSMRequest(StatesGroup):
     requested_items = State()
@@ -16,18 +19,24 @@ class FSMRequest(StatesGroup):
 class FSMScheduler(StatesGroup):
     requested_items = State()
 
-async def send_in_scheduler(message: types.Message, state:FSMContext):
-    if user_track_inf[message.from_user.id]:
-        control_load_file[message.from_user.id] = False
-        await create_parce_call(message)
-        await message.answer("Виберіть потрібну дію", reply_markup=Main_Keyboard)
-        os.remove(f"data_{message.from_user.id}.csv")
-    else:
-        await state.finish()
+async def send_in_scheduler(message: types.Message, state:types.Message, count):
+    await message.answer("Testing task manager")
+    # else:
+    #     await state.finish()
 
-async def start_mgmt():
+async def create_scheduler(message:types.Message, state:FSMContext, count = 0):
+    schedule.every(30).seconds.do(send_in_scheduler, message, state, count)
     while True:
+        if count > 10:
+            print("10 !!!")
+            return
         await schedule.run_pending()
+        await asyncio.sleep(30)
+    # await start_mgmt()
+
+# async def start_mgmt():
+#     while True:
+#         await schedule.run_pending()
 
 # @dp.message_handler(commands=["Make_request"])
 async def FSM_Start(message: types.Message):
@@ -48,6 +57,8 @@ async def singl_request(message: types.Message, state: FSMContext):
 # @dp.message_handler(commands=["Track_in_time"])
 async def track_scheduler(message: types.Message):
     await message.reply("Відправте назву товару для відстежування", reply_markup=Cancel_Keyboard)
+
+    user_track_inf[message.from_user.id] = True
     await FSMScheduler.requested_items.set()
 
 # @dp.message_handler(state=FSMScheduler.requested_items)
@@ -69,4 +80,4 @@ def register_request_handlers(dp: Dispatcher):
     dp.register_message_handler(FSM_Start, commands=["Make_request"], state=None)
     dp.register_message_handler(singl_request, state=FSMRequest.requested_items)
     dp.register_message_handler(track_scheduler, commands=["Track_in_time"], state=None)
-    dp.register_message_handler(singl_request, state=FSMRequest.requested_items)
+    dp.register_message_handler(create_scheduler, state=FSMScheduler.requested_items)
